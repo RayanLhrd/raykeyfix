@@ -4,6 +4,8 @@ package com.raylauncher.raykeyfix;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.neoforged.neoforge.client.extensions.IKeyMappingExtension;
+import net.neoforged.neoforge.client.settings.KeyModifier;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -84,9 +86,29 @@ final class KeybindRestorer {
             String desired = backedUp.get(km.getName());
             if (desired == null) continue;
             try {
-                InputConstants.Key newKey = InputConstants.getKey(desired);
-                if (!km.getKey().equals(newKey)) {
-                    km.setKey(newKey);
+                // NeoForge extends MC's keybind format with an optional ":MODIFIER" suffix
+                // (CONTROL / SHIFT / ALT / NONE) — mods like JEI, Jade, etc. use this to bind
+                // chord combos like Ctrl+O for "toggle JEI overlay". The vanilla
+                // InputConstants.getKey() doesn't know about modifiers and throws on the
+                // suffix, so we split it off and apply both via NeoForge's
+                // IKeyMappingExtension API.
+                String keyId = desired;
+                KeyModifier modifier = KeyModifier.NONE;
+                int lastColon = desired.lastIndexOf(':');
+                if (lastColon > 0) {
+                    String suffix = desired.substring(lastColon + 1);
+                    try {
+                        modifier = KeyModifier.valueOf(suffix);
+                        keyId = desired.substring(0, lastColon);
+                    } catch (IllegalArgumentException ignored) {
+                        // Not a modifier — treat the whole string as the key id and let
+                        // InputConstants.getKey() decide whether it's a valid binding.
+                    }
+                }
+                InputConstants.Key newKey = InputConstants.getKey(keyId);
+                IKeyMappingExtension ext = (IKeyMappingExtension) (Object) km;
+                if (!km.getKey().equals(newKey) || ext.getKeyModifier() != modifier) {
+                    ext.setKeyModifierAndCode(modifier, newKey);
                     restored++;
                 }
             } catch (Exception e) {
