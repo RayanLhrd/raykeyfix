@@ -1,0 +1,89 @@
+name: Build RayKeyFix
+
+# Build on every main push (validation) and on every v*.*.* tag (release).
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      # required for `gh release create / upload` when the workflow fires on a tag
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10'
+
+      - name: Build mod jar
+        run: gradle build --no-daemon --stacktrace
+
+      - name: Locate built jar
+        id: jar
+        shell: bash
+        run: |
+          jar_path=$(ls build/libs/raykeyfix-*.jar | grep -v sources | grep -v javadoc | head -n 1)
+          if [ -z "$jar_path" ]; then
+            echo "No jar found in build/libs/"; ls -la build/libs/; exit 1
+          fi
+          echo "path=$jar_path" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename $jar_path)" >> "$GITHUB_OUTPUT"
+          echo "Built: $jar_path"
+
+      - name: Upload artifact (Actions tab download)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.jar.outputs.name }}
+          path: ${{ steps.jar.outputs.path }}
+
+      - name: Create GitHub Release (on tag push only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          tag="${{ github.ref_name }}"
+          version="${tag#v}"
+          body=$(cat <<'EOF'
+          RayKeyFix — workaround for Minecraft 1.21.0-1.21.4 client_loaded_correctly keybind reset bug (Mojang issue, NeoForge PR #2049 fixed upstream only in 1.21.5+).
+
+          ## Install
+
+          Drop `raykeyfix-${VERSION}.jar` in `overrides/mods/` of your NeoForge 1.21.1 modpack (or directly in `mods/` for standalone use).
+
+          ## What it does
+
+          - On every client launch, after all mods register their KeyMappings, reads `<gameDir>/options.txt.raykeyfix-backup` and re-applies the saved keybinds to the in-memory state (then re-saves options.txt to match).
+          - On JVM shutdown, mirrors the current options.txt into the backup so any in-game keybind changes survive into the next session.
+
+          ## Compatibility
+
+          - Minecraft 1.21.1
+          - NeoForge 21.1.x
+          - Client-side only
+          EOF
+          )
+          body="${body//\$\{VERSION\}/$version}"
+          gh release create "$tag" \
+            --title "RayKeyFix $version" \
+            --notes "$body" \
+            --latest \
+            "${{ steps.jar.outputs.path }}"

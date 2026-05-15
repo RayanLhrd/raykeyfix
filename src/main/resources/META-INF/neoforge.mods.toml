@@ -1,0 +1,36 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="GPL-3.0-only"
+issueTrackerURL="https://github.com/RayanLhrd/raykeyfix/issues"
+
+[[mods]]
+modId="raykeyfix"
+version="${file.jarVersion}"
+displayName="RayKeyFix"
+authors="Rayou (RayanLhrd)"
+description='''
+Workaround for Minecraft 1.21.0-1.21.4's `client_loaded_correctly` flag bug that resets
+modded keybinds at every startup (Mojang issue, NeoForge PR #2049 fixed it only in 1.21.5+).
+
+At first launch, RayKeyFix snapshots options.txt to options.txt.raykeyfix-backup. On
+every subsequent launch, after all mods have registered their keybinds, RayKeyFix
+reads the backup and applies the saved values to the in-memory KeyMappings, then
+re-saves options.txt. The fix lives in memory, not just on disk, so modded keybinds
+survive the bug.
+
+Ships with RayLauncher modpacks. Standalone use: drop the jar in your mods/ folder.
+'''
+
+[[dependencies.raykeyfix]]
+    modId="neoforge"
+    type="required"
+    versionRange="[21.1,21.2)"
+    ordering="NONE"
+    side="CLIENT"
+
+[[dependencies.raykeyfix]]
+    modId="minecraft"
+    type="required"
+    versionRange="[1.21.1,1.21.2)"
+    ordering="NONE"
+    side="CLIENT"
