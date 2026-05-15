@@ -32,15 +32,13 @@ neoForge {
     }
 }
 
-// Substitute ${file.jarVersion} placeholder in neoforge.mods.toml with the
-// Gradle project version so the displayed mod version always matches the jar.
-processResources {
-    var replacements = [version: project.version]
-    inputs.properties(replacements)
-    filesMatching(['META-INF/neoforge.mods.toml']) {
-        expand replacements
-    }
-}
+// We deliberately do NOT run Groovy template expansion on neoforge.mods.toml:
+// the `${file.jarVersion}` placeholder it contains is resolved by NeoForge AT
+// MOD LOAD TIME from the jar's manifest Implementation-Version (which Gradle's
+// `jar` block sets to project.version below). Running Gradle's `expand` here
+// would try to substitute the placeholder at build time and fail with
+// "Missing property (file)" because `file.jarVersion` isn't a Gradle-side
+// variable. Leaving the toml unprocessed is the canonical NeoForge pattern.
 
 jar {
     manifest.attributes(
